@@ -1,6 +1,8 @@
 import GithubSlugger from 'github-slugger';
 import { toString } from 'mdast-util-to-string';
-import type { Heading, Link, List, ListItem, Paragraph, Root, Text } from 'mdast';
+import type {
+  Heading, Link, LinkReference, List, ListItem, Paragraph, PhrasingContent, Root, Text,
+} from 'mdast';
 import type { Plugin } from 'unified';
 import { visit } from 'unist-util-visit';
 
@@ -31,9 +33,13 @@ function buildListItem(entry: HeadingEntry): ListItem {
     url: `#${entry.slug}`,
     children: [{ type: 'text', value: entry.text } as Text],
   };
+  const indent = Math.max(0, entry.depth - 1);
   return {
     type: 'listItem',
     spread: false,
+    data: {
+      hProperties: { className: [`growi-plugin-text-toc-item-l${entry.depth}`], style: `margin-left: ${indent * 1.2}em` },
+    },
     children: [{ type: 'paragraph', children: [link] } as Paragraph],
   };
 }
@@ -54,21 +60,43 @@ function buildTocList(headings: HeadingEntry[], maxDepth: number): List {
   return list;
 }
 
+function reconstructSource(children: PhrasingContent[]): string | null {
+  let out = '';
+  for (const child of children) {
+    if (child.type === 'text') {
+      out += (child as Text).value;
+    }
+    else if (child.type === 'linkReference') {
+      const lr = child as LinkReference;
+      const label = lr.label ?? toString(lr);
+      out += `[${label}]`;
+    }
+    else {
+      return null;
+    }
+  }
+  return out;
+}
+
 export const remarkToc: Plugin<[], Root> = () => (tree) => {
   const headings = collectHeadings(tree);
+  // eslint-disable-next-line no-console
+  console.log('[growi-plugin-text] remarkToc run, headings=', headings.length);
+
+  if (headings.length === 0) return;
 
   visit(tree, 'paragraph', (node: Paragraph, index, parent) => {
     if (parent == null || index == null) return;
-    if (node.children.length !== 1 || node.children[0].type !== 'text') return;
 
-    const textNode = node.children[0] as Text;
-    const match = TOC_PATTERN.exec(textNode.value.trim());
+    const reconstructed = reconstructSource(node.children);
+    if (reconstructed == null) return;
+
+    const match = TOC_PATTERN.exec(reconstructed.trim());
     if (match == null) return;
 
     const maxDepth = match[1] != null ? parseInt(match[1], 10) : 6;
-
-    if (headings.length === 0) return;
-
+    // eslint-disable-next-line no-console
+    console.log('[growi-plugin-text] TOC matched, maxDepth=', maxDepth);
     (parent.children as Root['children'])[index] = buildTocList(headings, maxDepth);
   });
 };

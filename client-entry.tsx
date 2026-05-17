@@ -7,8 +7,13 @@ declare const growiFacade: GrowiFacade;
 
 const activate = (): void => {
   if (growiFacade == null || growiFacade.markdownRenderer == null) {
+    // eslint-disable-next-line no-console
+    console.warn('[growi-plugin-text] growiFacade.markdownRenderer is not available');
     return;
   }
+
+  // eslint-disable-next-line no-console
+  console.log('[growi-plugin-text] activated');
 
   const { optionsGenerators } = growiFacade.markdownRenderer;
   const originalCustomViewOptions = optionsGenerators.customGenerateViewOptions;
@@ -19,6 +24,8 @@ const activate = (): void => {
       : optionsGenerators.generateViewOptions(...args);
 
     options.remarkPlugins = [...(options.remarkPlugins ?? []), remarkToc];
+    // eslint-disable-next-line no-console
+    console.log('[growi-plugin-text] remarkPlugins extended', options.remarkPlugins.length);
     return options;
   };
 };
